@@ -115,7 +115,7 @@ Each control that can be asserted is asserted in `terraform test` or
 | AZ outage | 3-AZ nodes, per-AZ NAT, Multi-AZ RDS failover | 0 | ~2 min |
 | Bad deploy | Argo CD rollback to previous revision | 0 | < 5 min |
 | Data corruption | RDS point-in-time restore | ≤ 5 min | ~30–60 min |
-| Region loss | Cross-region snapshot copy + rebuild from Terraform | ≤ 24 h | ~4 h |
+| Region loss | Rebuild from Terraform in a second region; cross-region backup replication is planned (M3) | ≤ 24 h once M3 ships | ~4 h |
 
 Procedures: [restore PostgreSQL](docs/runbooks/postgres-point-in-time-restore.md),
 [error budget burn](docs/runbooks/error-budget-burn.md),
@@ -164,6 +164,17 @@ Production's fixed floor is dominated by three NAT gateways, three system
 nodes and a Multi-AZ `r7g.xlarge`. Staging trades availability for cost
 (one NAT, spot nodes, single-AZ database). The S3 gateway endpoint removes
 NAT data charges for image layers and backups.
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [Product](docs/product.md) | Vision, business problem, business and technical requirements, workflows |
+| [Engineering](docs/engineering.md) | Boundaries, security, performance, observability, DR, DevOps, testing |
+| [Roadmap](docs/roadmap.md) | Ten milestones and the release plan |
+| [CTO review checklist](docs/cto-review-checklist.md) | Honest status against production-readiness criteria |
+| [ADRs](docs/adr) | Architecture decisions |
+| [Contributing](CONTRIBUTING.md) | Branching, commits, labels, board, releases |
 
 ## License
 
