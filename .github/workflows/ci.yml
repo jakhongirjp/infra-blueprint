@@ -112,7 +112,7 @@ jobs:
       - run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - run: terraform plan -input=false -no-color -lock=false -out=tfplan
       - run: terraform show -no-color tfplan > plan.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plan-${{ matrix.env }}
           path: terraform/envs/${{ matrix.env }}/plan.txt
