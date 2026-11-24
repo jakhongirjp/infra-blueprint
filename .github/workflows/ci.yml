@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-modules:
+    name: terraform test (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [network, eks, postgres]
+    defaults:
+      run:
+        working-directory: terraform/modules/${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.13.4 }
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - run: terraform test
+
+  terraform-stacks:
+    name: terraform validate (${{ matrix.stack }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stack: [bootstrap, envs/staging, envs/production]
+    defaults:
+      run:
+        working-directory: terraform/${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.13.4 }
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  tflint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - run: tflint --init
+      - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy misconfiguration scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  kubernetes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint k8s/charts/service --strict -f k8s/charts/service/ci/ledgerflow-values.yaml
+      - name: Policy check (chart CI values and Argo CD apps)
+        run: |
+          pip install --quiet pyyaml
+          for f in k8s/charts/service/ci/*.yaml; do
+            helm template t k8s/charts/service -f "$f" | python3 scripts/check_chart_policy.py
+          done
+          scripts/render_argocd_apps.sh
+      - name: Schema validation
+        run: |
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
+          for f in k8s/charts/service/ci/*.yaml; do
+            helm template t k8s/charts/service -f "$f" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+              -ignore-missing-schemas -kubernetes-version 1.34.0
+          done
+          "$(go env GOPATH)/bin/kubeconform" -strict -summary -ignore-missing-schemas k8s/platform
+
+  plan:
+    # Runs only where an AWS role is configured (repository variable), using
+    # GitHub OIDC; there are no long-lived AWS keys in this repository.
+    if: github.event_name == 'pull_request' && vars.AWS_PLAN_ROLE_ARN != ''
+    needs: [terraform-modules, terraform-stacks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    strategy:
+      matrix: { env: [staging, production] }
+    defaults:
+      run:
+        working-directory: terraform/envs/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: eu-central-1
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.13.4 }
+      - run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+      - run: terraform plan -input=false -no-color -lock=false -out=tfplan
+      - run: terraform show -no-color tfplan > plan.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan-${{ matrix.env }}
+          path: terraform/envs/${{ matrix.env }}/plan.txt
