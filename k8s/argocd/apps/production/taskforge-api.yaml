@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: taskforge-api-production
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: workloads
+  source:
+    repoURL: https://github.com/jakhongirjp/infra-blueprint
+    targetRevision: main
+    path: k8s/charts/service
+    helm:
+      releaseName: taskforge-api
+      valuesObject:
+        image:
+          repository: ghcr.io/jakhongirjp/taskforge-api
+          tag: "0.1.0" # bumped by the service's release pipeline
+        containerPort: 4000
+        envFromSecrets: [taskforge-api-config]
+        autoscaling: { minReplicas: 3, maxReplicas: 20 }
+        ingress: { enabled: true, host: taskforge-api.production.example.com }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: taskforge
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

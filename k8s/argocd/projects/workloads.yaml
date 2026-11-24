@@ -1,0 +1,25 @@
+# Workload teams may only deploy into their own namespaces and may not create
+# cluster-scoped resources. Platform add-ons use the "platform" project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workloads
+  namespace: argocd
+spec:
+  description: Product services
+  sourceRepos:
+    - https://github.com/jakhongirjp/infra-blueprint
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: ledgerflow }
+    - { server: https://kubernetes.default.svc, namespace: taskforge }
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - { group: "", kind: ResourceQuota }
+    - { group: "", kind: LimitRange }
+  syncWindows:
+    # No automatic production syncs during the Friday change freeze.
+    - kind: deny
+      schedule: "0 15 * * 5"
+      duration: 63h
+      applications: ["*"]
+      manualSync: true

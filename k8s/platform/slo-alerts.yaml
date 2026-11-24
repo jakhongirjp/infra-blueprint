@@ -1,0 +1,74 @@
+# Multi-window, multi-burn-rate SLO alerts (Google SRE Workbook, ch. 5) for a
+# 99.9% availability objective over 30 days. Error budget = 0.1%.
+#
+#   page:   2% of budget in 1h  (burn rate 14.4) or 5% in 6h (burn rate 6)
+#   ticket: 10% of budget in 3d (burn rate 1)
+#
+# Works for any service using the chart, because every service exports
+# <app>_http_requests_total{route,status}. Recording rules normalise that.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: http-slo
+  namespace: monitoring
+  labels: { release: kube-prometheus-stack }
+spec:
+  groups:
+    - name: http-slo.recording
+      interval: 30s
+      rules:
+        - record: service:http_requests:rate5m
+          expr: sum by (namespace, service) (rate({__name__=~".+_http_requests_total"}[5m]))
+        - record: service:http_errors:rate5m
+          expr: sum by (namespace, service) (rate({__name__=~".+_http_requests_total", status=~"5.."}[5m]))
+        - record: service:http_error_ratio:rate5m
+          expr: service:http_errors:rate5m / clamp_min(service:http_requests:rate5m, 1e-9)
+        - record: service:http_error_ratio:rate30m
+          expr: |
+            sum by (namespace, service) (rate({__name__=~".+_http_requests_total", status=~"5.."}[30m]))
+            / clamp_min(sum by (namespace, service) (rate({__name__=~".+_http_requests_total"}[30m])), 1e-9)
+        - record: service:http_error_ratio:rate1h
+          expr: |
+            sum by (namespace, service) (rate({__name__=~".+_http_requests_total", status=~"5.."}[1h]))
+            / clamp_min(sum by (namespace, service) (rate({__name__=~".+_http_requests_total"}[1h])), 1e-9)
+        - record: service:http_error_ratio:rate6h
+          expr: |
+            sum by (namespace, service) (rate({__name__=~".+_http_requests_total", status=~"5.."}[6h]))
+            / clamp_min(sum by (namespace, service) (rate({__name__=~".+_http_requests_total"}[6h])), 1e-9)
+        - record: service:http_error_ratio:rate3d
+          expr: |
+            sum by (namespace, service) (rate({__name__=~".+_http_requests_total", status=~"5.."}[3d]))
+            / clamp_min(sum by (namespace, service) (rate({__name__=~".+_http_requests_total"}[3d])), 1e-9)
+    - name: http-slo.alerts
+      rules:
+        - alert: ErrorBudgetBurnFast
+          expr: |
+            (service:http_error_ratio:rate1h > 14.4 * 0.001 and service:http_error_ratio:rate5m > 14.4 * 0.001)
+            or
+            (service:http_error_ratio:rate6h > 6 * 0.001 and service:http_error_ratio:rate30m > 6 * 0.001)
+          for: 2m
+          labels: { severity: page }
+          annotations:
+            summary: "{{ $labels.service }} is burning its error budget fast"
+            runbook_url: https://github.com/jakhongirjp/infra-blueprint/blob/main/docs/runbooks/error-budget-burn.md
+        - alert: ErrorBudgetBurnSlow
+          expr: service:http_error_ratio:rate3d > 0.001
+          for: 1h
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.service }} will exhaust its 30-day error budget"
+            runbook_url: https://github.com/jakhongirjp/infra-blueprint/blob/main/docs/runbooks/error-budget-burn.md
+    - name: platform.alerts
+      rules:
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+          for: 5m
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted more than 3 times in 15m"
+        - alert: DeploymentReplicasMismatch
+          expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+          for: 15m
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has unavailable replicas for 15m"

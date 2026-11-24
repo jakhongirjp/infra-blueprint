@@ -1,0 +1,33 @@
+# Workload namespaces enforce the "restricted" Pod Security Standard and get
+# quotas so one team cannot starve the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ledgerflow
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: taskforge
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: ledgerflow
+spec:
+  hard: { requests.cpu: "16", requests.memory: 32Gi, limits.memory: 64Gi, pods: "100" }
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: taskforge
+spec:
+  hard: { requests.cpu: "16", requests.memory: 32Gi, limits.memory: 64Gi, pods: "100" }

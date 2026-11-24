@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ledgerd-production
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: workloads
+  source:
+    repoURL: https://github.com/jakhongirjp/infra-blueprint
+    targetRevision: main
+    path: k8s/charts/service
+    helm:
+      releaseName: ledgerd
+      valuesObject:
+        image:
+          repository: ghcr.io/jakhongirjp/ledgerflow-ledgerd
+          tag: "0.1.0" # bumped by the service's release pipeline
+        containerPort: 8080
+        envFromSecrets: [ledgerd-config]
+        autoscaling: { minReplicas: 3, maxReplicas: 20 }
+        ingress: { enabled: true, host: ledgerd.production.example.com }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ledgerflow
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }
