@@ -1,0 +1,68 @@
+# -- Image to run. Pin by digest in production overlays.
+image:
+  repository: ghcr.io/jakhongirjp/ledgerflow-ledgerd
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+containerPort: 8080
+
+# -- Extra arguments for the container entrypoint.
+args: []
+
+env: {}
+# -- Mount environment variables from existing Secrets (e.g. created by External Secrets).
+envFromSecrets: []
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 256Mi } # no CPU limit: avoids CFS throttling on latency-sensitive services
+
+probes:
+  liveness: { path: /healthz, initialDelaySeconds: 5, periodSeconds: 10 }
+  readiness: { path: /readyz, initialDelaySeconds: 2, periodSeconds: 5 }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+serviceAccount:
+  create: true
+  # -- Annotations, e.g. for workload identity.
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: alb
+  host: ""
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  # -- Namespaces allowed to call this service (by kubernetes.io/metadata.name).
+  allowFromNamespaces: [ingress, monitoring]
+  # -- Allow DNS and egress to these CIDRs (e.g. data subnets for the database).
+  egressCIDRs: []
+  egressPorts: [5432, 4222]
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    path: /metrics
+    interval: 30s
+
+# -- Spread pods across zones and nodes.
+topologySpread:
+  enabled: true
+
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}

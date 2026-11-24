@@ -1,0 +1,5 @@
+image: { tag: "0.1.0" }
+envFromSecrets: [ledgerflow-db]
+networkPolicy:
+  egressCIDRs: ["10.10.224.0/20"]
+ingress: { enabled: true, host: ledger.example.com }
