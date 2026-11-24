@@ -20,7 +20,7 @@ jobs:
       run:
         working-directory: terraform/modules/${{ matrix.module }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.13.4 }
       - run: terraform fmt -check -recursive
@@ -38,7 +38,7 @@ jobs:
       run:
         working-directory: terraform/${{ matrix.stack }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.13.4 }
       - run: terraform init -backend=false -input=false
@@ -47,7 +47,7 @@ jobs:
   tflint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: terraform-linters/setup-tflint@v4
       - run: tflint --init
       - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
@@ -55,7 +55,7 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trivy misconfiguration scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -67,7 +67,7 @@ jobs:
   kubernetes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: azure/setup-helm@v4
       - run: helm lint k8s/charts/service --strict -f k8s/charts/service/ci/ledgerflow-values.yaml
       - name: Policy check (chart CI values and Argo CD apps)
@@ -102,7 +102,7 @@ jobs:
       run:
         working-directory: terraform/envs/${{ matrix.env }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
