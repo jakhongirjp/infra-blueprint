@@ -21,7 +21,7 @@ jobs:
         working-directory: terraform/modules/${{ matrix.module }}
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with: { terraform_version: 1.13.4 }
       - run: terraform fmt -check -recursive
       - run: terraform init -backend=false -input=false
@@ -39,7 +39,7 @@ jobs:
         working-directory: terraform/${{ matrix.stack }}
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with: { terraform_version: 1.13.4 }
       - run: terraform init -backend=false -input=false
       - run: terraform validate
@@ -107,7 +107,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
           aws-region: eu-central-1
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with: { terraform_version: 1.13.4 }
       - run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - run: terraform plan -input=false -no-color -lock=false -out=tfplan
